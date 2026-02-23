@@ -144,16 +144,24 @@ print_tailscale_next_steps() {
 install_rocm() {
   log "Installing AMD ROCm (Ubuntu 24.04)"
   : > "$ROCM_LOG"
+
+  if command -v rocminfo >/dev/null 2>&1; then
+    log "ROCm appears already installed (rocminfo found). Skipping reinstall."
+    return 0
+  fi
+
   {
     apt-get install -y "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" || true
     wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor > /usr/share/keyrings/rocm-archive-keyring.gpg
     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/rocm-archive-keyring.gpg] https://repo.radeon.com/rocm/apt/debian/ jammy main' > /etc/apt/sources.list.d/rocm.list
     apt-get update -y
-    DEBIAN_FRONTEND=noninteractive apt-get install -y rocm rocminfo clinfo || true
-    usermod -aG render,video "$SUDO_USER" || true
+    DEBIAN_FRONTEND=noninteractive apt-get install -y rocm rocminfo clinfo
+    if [[ -n "${SUDO_USER:-}" ]]; then
+      usermod -aG render,video "$SUDO_USER" || true
+    fi
   } >> "$ROCM_LOG" 2>&1
 
-  log "ROCm install attempted. Reboot required before verification."
+  log "ROCm install complete. Reboot required before verification."
 }
 
 install_ollama_rocm() {
@@ -165,7 +173,15 @@ install_ollama_rocm() {
     cd "$tmpd"
     curl -fL -o ollama.tgz https://ollama.com/download/ollama-linux-amd64-rocm.tgz
     tar -xzf ollama.tgz
-    install -m 755 bin/ollama /usr/local/bin/ollama
+    if [[ -f bin/ollama ]]; then
+      install -m 755 bin/ollama /usr/local/bin/ollama
+    elif [[ -f ollama ]]; then
+      install -m 755 ollama /usr/local/bin/ollama
+    else
+      echo "Could not find ollama binary in extracted tarball" >&2
+      ls -la >&2
+      exit 1
+    fi
 
     id -u ollama >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin -m -d /var/lib/ollama ollama
 
