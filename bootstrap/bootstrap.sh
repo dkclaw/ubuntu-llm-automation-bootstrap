@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+trap 'rc=$?; echo; echo "[ERROR] Bootstrap failed (exit $rc). Check logs:"; echo "  /var/log/bootstrap.log"; echo "  /var/log/bootstrap-ollama.log"; echo "  /var/log/bootstrap-rocm.log"; exit $rc' ERR
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=checks.sh
 source "$SCRIPT_DIR/checks.sh"

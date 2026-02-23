@@ -190,7 +190,13 @@ UNIT
     systemctl enable --now ollama
   } >> "$OLLAMA_LOG" 2>&1
 
-  curl -sf http://127.0.0.1:11434/api/tags >/dev/null && log "Ollama reachable on localhost"
+  if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+    log "Ollama reachable on localhost"
+  else
+    log "Ollama service installed, but API health check failed. See $OLLAMA_LOG and: journalctl -u ollama -n 200 --no-pager"
+  fi
+
+  log "Ollama install/config step complete"
 }
 
 relocate_ollama_storage() {
