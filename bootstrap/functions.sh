@@ -145,21 +145,28 @@ install_rocm() {
   log "Installing AMD ROCm (Ubuntu 24.04)"
   : > "$ROCM_LOG"
 
+  _rocm_run() {
+    local cmd="$1"
+    echo "[ROCM] $cmd" | tee -a "$ROCM_LOG"
+    bash -lc "$cmd" >> "$ROCM_LOG" 2>&1
+  }
+
   if command -v rocminfo >/dev/null 2>&1; then
     log "ROCm appears already installed (rocminfo found). Skipping reinstall."
     return 0
   fi
 
-  {
-    apt-get install -y "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" || true
-    wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor > /usr/share/keyrings/rocm-archive-keyring.gpg
-    echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/rocm-archive-keyring.gpg] https://repo.radeon.com/rocm/apt/debian/ jammy main' > /etc/apt/sources.list.d/rocm.list
-    apt-get update -y
-    DEBIAN_FRONTEND=noninteractive apt-get install -y rocm rocminfo clinfo
-    if [[ -n "${SUDO_USER:-}" ]]; then
-      usermod -aG render,video "$SUDO_USER" || true
-    fi
-  } >> "$ROCM_LOG" 2>&1
+  _rocm_run "apt-get install -y linux-headers-$(uname -r) linux-modules-extra-$(uname -r)"
+  _rocm_run "install -m 0755 -d /usr/share/keyrings"
+  _rocm_run "curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key -o /tmp/rocm.gpg.key"
+  _rocm_run "gpg --dearmor -o /usr/share/keyrings/rocm-archive-keyring.gpg /tmp/rocm.gpg.key"
+  _rocm_run "bash -c 'cat > /etc/apt/sources.list.d/rocm.list <<\"EOF\"\ndeb [arch=amd64 signed-by=/usr/share/keyrings/rocm-archive-keyring.gpg] https://repo.radeon.com/rocm/apt/debian/ jammy main\nEOF'"
+  _rocm_run "apt-get update -y"
+  _rocm_run "DEBIAN_FRONTEND=noninteractive apt-get install -y rocm rocminfo clinfo"
+
+  if [[ -n "${SUDO_USER:-}" ]]; then
+    _rocm_run "usermod -aG render,video ${SUDO_USER}"
+  fi
 
   log "ROCm install complete. Reboot required before verification."
 }
